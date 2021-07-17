@@ -135,6 +135,7 @@ GraalVM Native Image
 --------------------
 
 Building your native images with Graal https://www.graalvm.org/ should work automatically.
+This is not currently in a final released version, so 5.0.0-alpha.2 should be used.
 Please report any bugs or workarounds you find.
 
 See the okcurl module for an example build.
@@ -164,7 +165,7 @@ limitations under the License.
 ```
 
  [bom]: https://docs.gradle.org/6.2/userguide/platforms.html#sub:bom_import
- [changelog]: http://square.github.io/okhttp/changelog/
+ [changelog]: https://square.github.io/okhttp/changelog/
  [conscrypt]: https://github.com/google/conscrypt/
  [get_example]: https://raw.github.com/square/okhttp/master/samples/guide/src/main/java/okhttp3/guide/GetExample.java
  [kotlin]: https://kotlinlang.org/
@@ -174,6 +175,6 @@ limitations under the License.
  [okio]: https://github.com/square/okio
  [post_example]: https://raw.github.com/square/okhttp/master/samples/guide/src/main/java/okhttp3/guide/PostExample.java
  [r8_proguard]: https://square.github.io/okhttp/r8_proguard/
- [recipes]: http://square.github.io/okhttp/recipes/
+ [recipes]: https://square.github.io/okhttp/recipes/
  [snap]: https://oss.sonatype.org/content/repositories/snapshots/
  [tls_history]: https://square.github.io/okhttp/tls_configuration_history/

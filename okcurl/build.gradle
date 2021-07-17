@@ -17,8 +17,11 @@ jar {
 sourceSets {
   main.resources.srcDirs += "$buildDir/generated/resources-templates"
 }
-compileJava {
+processResources {
   dependsOn 'copyResourcesTemplates'
+}
+sourcesJar {
+    dependsOn 'copyResourcesTemplates'
 }
 task copyResourcesTemplates(type: Copy) {
   from 'src/main/resources-templates'

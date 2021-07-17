@@ -115,7 +115,7 @@ Download a file on a worker thread, and get called back when the response is rea
  
 ### Accessing Headers ([.kt][AccessHeadersKotlin], [.java][AccessHeadersJava])
 
-Typically HTTP headers work like a `Map<String, String>`: each field has one value or none. But some headers permit multiple values, like Guava's [Multimap](http://docs.guava-libraries.googlecode.com/git/javadoc/com/google/common/collect/Multimap.html). For example, it's legal and common for an HTTP response to supply multiple `Vary` headers. OkHttp's APIs attempt to make both cases comfortable.
+Typically HTTP headers work like a `Map<String, String>`: each field has one value or none. But some headers permit multiple values, like Guava's [Multimap](https://guava.dev/releases/23.0/api/docs/com/google/common/collect/Multimap.html). For example, it's legal and common for an HTTP response to supply multiple `Vary` headers. OkHttp's APIs attempt to make both cases comfortable.
 
 When writing request headers, use `header(name, value)` to set the only occurrence of `name` to `value`. If there are existing values, they will be removed before the new value is added. Use `addHeader(name, value)` to add a header without removing the headers already present.
 
@@ -636,7 +636,7 @@ Response caching uses HTTP headers for all configuration. You can add request he
       }
     ```
 
-To prevent a response from using the cache, use [`CacheControl.FORCE_NETWORK`](http://square.github.io/okhttp/4.x/okhttp/okhttp3/-cache-control/-f-o-r-c-e_-n-e-t-w-o-r-k/). To prevent it from using the network, use [`CacheControl.FORCE_CACHE`](http://square.github.io/okhttp/4.x/okhttp/okhttp3/-cache-control/-f-o-r-c-e_-c-a-c-h-e/). Be warned: if you use `FORCE_CACHE` and the response requires the network, OkHttp will return a `504 Unsatisfiable Request` response.
+To prevent a response from using the cache, use [`CacheControl.FORCE_NETWORK`](https://square.github.io/okhttp/4.x/okhttp/okhttp3/-cache-control/-f-o-r-c-e_-n-e-t-w-o-r-k/). To prevent it from using the network, use [`CacheControl.FORCE_CACHE`](https://square.github.io/okhttp/4.x/okhttp/okhttp3/-cache-control/-f-o-r-c-e_-c-a-c-h-e/). Be warned: if you use `FORCE_CACHE` and the response requires the network, OkHttp will return a `504 Unsatisfiable Request` response.
  
 ### Canceling a Call ([.kt][CancelCallKotlin], [.java][CancelCallJava])
 
