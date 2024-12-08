@@ -26,7 +26,6 @@ import java.security.cert.X509Certificate
 import java.util.concurrent.TimeUnit
 import javax.net.ssl.SSLPeerUnverifiedException
 import javax.net.ssl.SSLSocket
-import kotlin.concurrent.withLock
 import okhttp3.CertificatePinner
 import okhttp3.ConnectionSpec
 import okhttp3.Handshake
@@ -94,8 +93,8 @@ class ConnectPlan(
   internal var socket: Socket? = null
   private var handshake: Handshake? = null
   private var protocol: Protocol? = null
-  private var source: BufferedSource? = null
-  private var sink: BufferedSink? = null
+  private lateinit var source: BufferedSource
+  private lateinit var sink: BufferedSink
   private var connection: RealConnection? = null
 
   /** True if this connection is ready for use, including TCP, tunnels, and TLS. */
@@ -142,6 +141,14 @@ class ConnectPlan(
       success = true
       return ConnectResult(plan = this)
     } catch (e: IOException) {
+      // If we used the ProxySelector, and got a IOException during connect, report the failure.
+      if (route.address.proxy == null && route.proxy.type() != Proxy.Type.DIRECT) {
+        route.address.proxySelector.connectFailed(
+          route.address.url.toUri(),
+          route.proxy.address(),
+          e,
+        )
+      }
       user.connectFailed(route, null, e)
       return ConnectResult(plan = this, throwable = e)
     } finally {
@@ -153,7 +160,7 @@ class ConnectPlan(
   }
 
   override fun connectTlsEtc(): ConnectResult {
-    check(rawSocket != null) { "TCP not connected" }
+    val rawSocket = requireNotNull(rawSocket) { "TCP not connected" }
     check(!isReady) { "already connected" }
 
     val connectionSpecs = route.address.connectionSpecs
@@ -177,7 +184,7 @@ class ConnectPlan(
         // that happens, then we will have buffered bytes that are needed by the SSLSocket!
         // This check is imperfect: it doesn't tell us whether a handshake will succeed, just
         // that it will almost certainly fail because the proxy has sent unexpected data.
-        if (source?.buffer?.exhausted() == false || sink?.buffer?.exhausted() == false) {
+        if (!source.buffer.exhausted() || !sink.buffer.exhausted()) {
           throw IOException("TLS tunnel buffered too many bytes!")
         }
 
@@ -217,9 +224,9 @@ class ConnectPlan(
           connectionPool = connectionPool,
           route = route,
           rawSocket = rawSocket,
-          socket = socket,
+          socket = socket!!,
           handshake = handshake,
-          protocol = protocol,
+          protocol = protocol!!,
           source = source,
           sink = sink,
           pingIntervalMillis = pingIntervalMillis,
@@ -248,7 +255,7 @@ class ConnectPlan(
       user.removePlanToCancel(this)
       if (!success) {
         socket?.closeQuietly()
-        rawSocket?.closeQuietly()
+        rawSocket.closeQuietly()
       }
     }
   }
@@ -421,8 +428,6 @@ class ConnectPlan(
     val url = route.address.url
     val requestLine = "CONNECT ${url.toHostHeader(includeDefaultPort = true)} HTTP/1.1"
     while (true) {
-      val source = this.source!!
-      val sink = this.sink!!
       val tunnelCodec =
         Http1ExchangeCodec(
           // No client for CONNECT tunnels:
