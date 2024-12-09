@@ -23,10 +23,11 @@ import java.util.concurrent.TimeUnit
 import java.util.concurrent.locks.Condition
 import java.util.concurrent.locks.ReentrantLock
 import java.util.logging.Logger
-import kotlin.concurrent.withLock
 import okhttp3.internal.addIfAbsent
 import okhttp3.internal.assertHeld
 import okhttp3.internal.concurrent.TaskRunner.Companion.INSTANCE
+import okhttp3.internal.connection.Locks.newLockCondition
+import okhttp3.internal.connection.Locks.withLock
 import okhttp3.internal.okHttpName
 import okhttp3.internal.threadFactory
 
@@ -45,8 +46,8 @@ class TaskRunner(
   val backend: Backend,
   internal val logger: Logger = TaskRunner.logger,
 ) {
-  val lock: ReentrantLock = ReentrantLock()
-  val condition: Condition = lock.newCondition()
+  internal val lock: ReentrantLock = ReentrantLock()
+  val condition: Condition = lock.newLockCondition()
 
   private var nextQueueName = 10000
   private var coordinatorWaiting = false
@@ -72,31 +73,36 @@ class TaskRunner(
   private val runnable: Runnable =
     object : Runnable {
       override fun run() {
-        var incrementedRunCallCount = false
-        while (true) {
-          val task =
-            this@TaskRunner.lock.withLock {
-              if (!incrementedRunCallCount) {
-                incrementedRunCallCount = true
-                runCallCount++
+        var task: Task =
+          withLock {
+            runCallCount++
+            awaitTaskToRun()
+          } ?: return
+
+        val currentThread = Thread.currentThread()
+        val oldName = currentThread.name
+        try {
+          while (true) {
+            currentThread.name = task.name
+            val delayNanos =
+              logger.logElapsed(task, task.queue!!) {
+                task.runOnce()
               }
+
+            // A task ran successfully. Update the execution state and take the next task.
+            task = withLock {
+              afterRun(task, delayNanos, true)
               awaitTaskToRun()
             } ?: return
-
-          logger.logElapsed(task, task.queue!!) {
-            var completedNormally = false
-            try {
-              runTask(task)
-              completedNormally = true
-            } finally {
-              // If the task is crashing start another thread to service the queues.
-              if (!completedNormally) {
-                lock.withLock {
-                  startAnotherThread()
-                }
-              }
-            }
           }
+        } catch (thrown: Throwable) {
+          // A task failed. Update execution state and re-throw the exception.
+          withLock {
+            afterRun(task, -1L, false)
+          }
+          throw thrown
+        } finally {
+          currentThread.name = oldName
         }
       }
     }
@@ -130,25 +136,10 @@ class TaskRunner(
     busyQueues.add(queue)
   }
 
-  private fun runTask(task: Task) {
-    val currentThread = Thread.currentThread()
-    val oldName = currentThread.name
-    currentThread.name = task.name
-
-    var delayNanos = -1L
-    try {
-      delayNanos = task.runOnce()
-    } finally {
-      lock.withLock {
-        afterRun(task, delayNanos)
-      }
-      currentThread.name = oldName
-    }
-  }
-
   private fun afterRun(
     task: Task,
     delayNanos: Long,
+    completedNormally: Boolean,
   ) {
     lock.assertHeld()
 
@@ -166,6 +157,11 @@ class TaskRunner(
 
     if (queue.futureTasks.isNotEmpty()) {
       readyQueues.add(queue)
+
+      // If the task crashed, start another thread to run the next task.
+      if (!completedNormally) {
+        startAnotherThread()
+      }
     }
   }
 
@@ -264,7 +260,7 @@ class TaskRunner(
   }
 
   fun newQueue(): TaskQueue {
-    val name = lock.withLock { nextQueueName++ }
+    val name = this.withLock { nextQueueName++ }
     return TaskQueue(this, "Q$name")
   }
 
@@ -273,7 +269,7 @@ class TaskRunner(
    * necessarily track queues that have no tasks scheduled.
    */
   fun activeQueues(): List<TaskQueue> {
-    lock.withLock {
+    this.withLock {
       return busyQueues + readyQueues
     }
   }
