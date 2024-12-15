@@ -15,11 +15,14 @@
  */
 package okhttp3
 
+import assertk.all
 import assertk.assertThat
 import assertk.assertions.contains
 import assertk.assertions.containsExactly
 import assertk.assertions.doesNotContain
 import assertk.assertions.hasMessage
+import assertk.assertions.hasSize
+import assertk.assertions.index
 import assertk.assertions.isCloseTo
 import assertk.assertions.isEmpty
 import assertk.assertions.isEqualTo
@@ -30,6 +33,7 @@ import assertk.assertions.isNotNull
 import assertk.assertions.isNotSameAs
 import assertk.assertions.isNull
 import assertk.assertions.isTrue
+import assertk.assertions.matches
 import assertk.assertions.startsWith
 import assertk.fail
 import java.io.FileNotFoundException
@@ -1017,6 +1021,12 @@ open class CallTest {
     executeSynchronously(request)
       .assertCode(200)
       .assertBody("success!")
+
+    assertThat(proxySelector.failures)
+      .all {
+        hasSize(1)
+        index(0).matches(".* Connect timed out".toRegex(RegexOption.IGNORE_CASE))
+      }
   }
 
   /** https://github.com/square/okhttp/issues/4875  */
@@ -2619,8 +2629,8 @@ open class CallTest {
   }
 
   @Test
-  fun httpWithExcessiveHeaders() {
-    val longLine = "HTTP/1.1 200 " + stringFill('O', 256 * 1024) + "K"
+  fun httpWithExcessiveStatusLine() {
+    val longLine = "HTTP/1.1 200 " + "O".repeat(256 * 1024) + "K"
     server.protocols = listOf(Protocol.HTTP_1_1)
     server.enqueue(
       MockResponse.Builder()
@@ -2629,16 +2639,21 @@ open class CallTest {
         .build(),
     )
     executeSynchronously("/")
-      .assertFailureMatches(".*unexpected end of stream on " + server.url("/").redact())
+      .assertFailureMatches(".*unexpected end of stream on ${server.url("/").redact()}")
   }
 
-  private fun stringFill(
-    fillChar: Char,
-    length: Int,
-  ): String {
-    val value = CharArray(length)
-    Arrays.fill(value, fillChar)
-    return String(value)
+  @Test
+  fun httpWithExcessiveHeaders() {
+    server.protocols = listOf(Protocol.HTTP_1_1)
+    server.enqueue(
+      MockResponse.Builder()
+        .addHeader("Set-Cookie", "a=${"A".repeat(255 * 1024)}")
+        .addHeader("Set-Cookie", "b=${"B".repeat(1 * 1024)}")
+        .body("I'm not even supposed to be here today.")
+        .build(),
+    )
+    executeSynchronously("/")
+      .assertFailureMatches(".*unexpected end of stream on ${server.url("/").redact()}")
   }
 
   @Test
