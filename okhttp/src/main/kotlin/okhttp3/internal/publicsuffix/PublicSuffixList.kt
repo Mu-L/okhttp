@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2022 Square, Inc.
+ * Copyright (C) 2024 Block, Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -13,18 +13,16 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+package okhttp3.internal.publicsuffix
 
-package okhttp3.internal.graal
-
-import org.codehaus.mojo.animal_sniffer.IgnoreJRERequirement
-import org.graalvm.nativeimage.hosted.Feature
+import okio.ByteString
 
 /**
- * Automatic configuration of OkHttp for native images.
- *
- * Currently, includes all necessary resources.
+ * Basic I/O for the PublicSuffixDatabase.gz.
  */
-class OkHttpFeature : Feature {
-  @IgnoreJRERequirement
-  override fun beforeAnalysis(access: Feature.BeforeAnalysisAccess?) = Unit
+internal interface PublicSuffixList {
+  fun ensureLoaded()
+
+  val bytes: ByteString
+  val exceptionBytes: ByteString
 }

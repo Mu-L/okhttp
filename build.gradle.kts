@@ -3,13 +3,14 @@
 import com.diffplug.gradle.spotless.SpotlessExtension
 import com.vanniktech.maven.publish.MavenPublishBaseExtension
 import com.vanniktech.maven.publish.SonatypeHost
-import java.net.URI
 import kotlinx.validation.ApiValidationExtension
 import org.gradle.api.tasks.testing.logging.TestExceptionFormat
 import org.jetbrains.dokka.gradle.DokkaTaskPartial
+import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 import org.jetbrains.kotlin.gradle.dsl.kotlinExtension
 import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
 import ru.vyarus.gradle.plugin.animalsniffer.AnimalSnifferExtension
+import java.net.URI
 
 buildscript {
   dependencies {
@@ -18,7 +19,6 @@ buildscript {
     classpath(libs.gradlePlugin.kotlinSerialization)
     classpath(libs.gradlePlugin.androidJunit5)
     classpath(libs.gradlePlugin.android)
-    classpath(libs.gradlePlugin.graal)
     classpath(libs.gradlePlugin.bnd)
     classpath(libs.gradlePlugin.shadow)
     classpath(libs.gradlePlugin.animalsniffer)
@@ -27,6 +27,7 @@ buildscript {
     classpath(libs.gradlePlugin.mavenPublish)
     classpath(libs.gradlePlugin.binaryCompatibilityValidator)
     classpath(libs.gradlePlugin.mavenSympathy)
+    classpath(libs.gradlePlugin.graalvmBuildTools)
   }
 
   repositories {
@@ -42,6 +43,7 @@ apply(plugin = "com.diffplug.spotless")
 configure<SpotlessExtension> {
   kotlin {
     target("**/*.kt")
+    targetExclude("**/kotlinTemplates/**/*.kt")
     ktlint()
   }
 }
@@ -141,9 +143,16 @@ subprojects {
     signature(rootProject.libs.codehaus.signature.java18) { artifact { type = "signature" } }
   }
 
+  val javaVersionSetting = when (project.name) {
+    "okcurl", "native-image-tests" -> "11"
+    else -> "1.8"
+  }
+  val projectJvmTarget = JvmTarget.fromTarget(javaVersionSetting)
+  val projectJavaVersion = JavaVersion.toVersion(javaVersionSetting)
+
   tasks.withType<KotlinCompile> {
-    kotlinOptions {
-      jvmTarget = JavaVersion.VERSION_1_8.toString()
+    compilerOptions {
+      jvmTarget.set(projectJvmTarget)
       freeCompilerArgs = listOf(
         "-Xjvm-default=all",
       )
@@ -212,8 +221,8 @@ subprojects {
   }
 
   tasks.withType<JavaCompile> {
-    sourceCompatibility = JavaVersion.VERSION_1_8.toString()
-    targetCompatibility = JavaVersion.VERSION_1_8.toString()
+    sourceCompatibility = projectJavaVersion.toString()
+    targetCompatibility = projectJavaVersion.toString()
   }
 }
 

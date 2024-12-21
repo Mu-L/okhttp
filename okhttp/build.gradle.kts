@@ -1,5 +1,9 @@
 import com.vanniktech.maven.publish.JavadocJar
 import com.vanniktech.maven.publish.KotlinJvm
+import java.io.DataInputStream
+import java.io.FileInputStream
+import java.util.Base64
+import java.util.zip.GZIPInputStream
 
 plugins {
   kotlin("jvm")
@@ -9,12 +13,29 @@ plugins {
   id("binary-compatibility-validator")
 }
 
-// Build & use okhttp3/internal/-InternalVersion.kt
+fun ByteArray.toByteStringExpression(): String {
+  return "\"${Base64.getEncoder().encodeToString(this@toByteStringExpression)}\".decodeBase64()!!"
+}
+
 val copyKotlinTemplates = tasks.register<Copy>("copyKotlinTemplates") {
   from("src/main/kotlinTemplates")
-  into("$buildDir/generated/sources/kotlinTemplates")
-  expand("projectVersion" to project.version)
+  into(layout.buildDirectory.dir("generated/sources/kotlinTemplates"))
+
+  // Tag as an input to regenerate after an update
+  inputs.file("src/test/resources/okhttp3/internal/publicsuffix/PublicSuffixDatabase.gz")
+
   filteringCharset = Charsets.UTF_8.toString()
+
+  val databaseGz = project.file("src/test/resources/okhttp3/internal/publicsuffix/PublicSuffixDatabase.gz")
+  val listBytes = databaseGz.readBytes().toByteStringExpression()
+
+  expand(
+    // Build & use okhttp3/internal/-InternalVersion.kt
+    "projectVersion" to project.version,
+
+    // Build okhttp3/internal/publicsuffix/EmbeddedPublicSuffixList.kt
+    "publicSuffixListBytes" to listBytes
+  )
 }
 
 // Build & use okhttp3/internal/idn/IdnaMappingTableInstance.kt
@@ -23,9 +44,9 @@ dependencies {
   generateIdnaMappingTableConfiguration(projects.okhttpIdnaMappingTable)
 }
 val generateIdnaMappingTable by tasks.creating(JavaExec::class.java) {
-  outputs.dir("$buildDir/generated/sources/idnaMappingTable")
+  outputs.dir(layout.buildDirectory.dir("generated/sources/idnaMappingTable"))
   mainClass.set("okhttp3.internal.idn.GenerateIdnaMappingTableCode")
-  args("$buildDir/generated/sources/idnaMappingTable")
+  args(layout.buildDirectory.dir("generated/sources/idnaMappingTable").get())
   classpath = generateIdnaMappingTableConfiguration
 }
 
@@ -88,7 +109,7 @@ val osgiTestDeploy: Configuration by configurations.creating
 
 val copyOsgiTestDeployment by tasks.creating(Copy::class.java) {
   from(osgiTestDeploy)
-  into("$buildDir/resources/test/okhttp3/osgi/deployments")
+  into(layout.buildDirectory.dir("resources/test/okhttp3/osgi/deployments"))
 }
 tasks.getByName("test") {
   dependsOn(copyOsgiTestDeployment)
